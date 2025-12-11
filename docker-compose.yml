@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODEL_API_KEY: ${MODEL_API_KEY:-}
+        S3_BUCKET: ${S3_BUCKET:-}
+    container_name: timetravelar-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN:-}
+      - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    volumes:
+      # Persist uploads and cache across container restarts
+      - ./uploads:/app/uploads
+      - ./cache:/app/cache
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: timetravelar-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  default:
+    name: timetravelar-network
+
